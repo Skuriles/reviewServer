@@ -1,0 +1,23 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "bene",
+      "drinks": [
+        {
+          "id": 1,
+          "name": "drink0",
+          "value": "0",
+          "comment": "test"
+        },
+        {
+          "id": 1,
+          "name": "drink0",
+          "value": "1",
+          "comment": "test"
+        }
+      ]
+    }
+  ],
+  "drinks": []
+}

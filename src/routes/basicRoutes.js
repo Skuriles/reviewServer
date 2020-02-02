@@ -1,5 +1,13 @@
-var fs = require("fs");
-var path = require("path");
+const low = require("lowdb");
+const FileSync = require("lowdb/adapters/FileSync");
+const adapter = new FileSync("db.json");
+const db = low(adapter);
+
+// Set some defaults (required if your JSON file is empty)
+db.defaults({
+    users: [],
+    drinks: []
+}).write();
 
 module.exports = {
     start: (req, res) => {
@@ -11,12 +19,18 @@ module.exports = {
     getItems: (req, res) => {
         getItems(req, res);
     },
+    addUser: (req, res) => {
+        addUser(req, res);
+    },
+    saveDrink: (req, res) => {
+        saveDrink(req, res);
+    }
 };
 
 function getUserList(req, res) {
-    res.send("test");
-    return;
-};
+    var users = db.get("users").value();
+    res.send(users);
+}
 
 function getItems(req, res) {
     var list = [];
@@ -24,10 +38,76 @@ function getItems(req, res) {
         var item = {
             name: "drink" + i,
             id: i + 1
-        }
+        };
         list.push(item);
     }
 
     res.send(list);
     return;
-};
+}
+
+function addUser(req, res) {
+    var name = req.body.name;
+    var users = db.get("users").value();
+    if (nameAlreadyExist(users, name)) {
+        res.send(false);
+        return;
+    }
+    var id = getNextId(users);
+    var user = {
+        id: id,
+        name: name,
+        drinks: []
+    };
+    // Add a post
+    db.get("users")
+        .push(user)
+        .write();
+    res.send(true);
+}
+
+function saveDrink(req, res) {
+    var drink = req.body.item;
+    // Add a post
+
+    db.get('users[0].drinks')
+        .push(drink)
+        .write()
+    res.send(true);
+}
+
+function getNextId(users) {
+    if (!users || users.length == 0) {
+        return 1;
+    }
+    users.sort(compareUsers);
+    const lastId = 0;
+    for (let i = 0; i < users.length; i++) {
+        const user = users[i];
+        if (i == 0 && user.id != 1) {
+            return 1;
+        }
+        if (lastId + 1 != user.id) {
+            return lastId + 1;
+        }
+    }
+}
+
+function compareUsers(a, b) {
+    if (a.id < b.id) {
+        return -1;
+    }
+    if (a.id > b.id) {
+        return 1;
+    }
+    return 0;
+}
+
+function nameAlreadyExist(users, name) {
+    for (const user of users) {
+        if (user.name.toLowerCase() == name.toLowerCase()) {
+            return true;
+        }
+    }
+    return false;
+}
