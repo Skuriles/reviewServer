@@ -2,7 +2,8 @@ const low = require("lowdb");
 const FileSync = require("lowdb/adapters/FileSync");
 const adapter = new FileSync("db.json");
 const db = low(adapter);
-
+var jwt = require("jsonwebtoken");
+const tokenHash = "hhdaii1123";
 // Set some defaults (required if your JSON file is empty)
 db.defaults({
     users: [],
@@ -12,6 +13,12 @@ db.defaults({
 module.exports = {
     start: (req, res) => {
         res.sendFile(path.resolve(__dirname + "/../public/index.html"));
+    },
+    login: (req, res) => {
+        login(req, res);
+    },
+    checkToken: (req, res) => {
+        checkToken(req, res);
     },
     getUserList: (req, res) => {
         getUserList(req, res);
@@ -26,6 +33,66 @@ module.exports = {
         saveDrink(req, res);
     }
 };
+
+function login(req, res) {
+    const user = req.body.user;
+    const token = jwt.sign({
+        name: user.name,
+        pw: user.pw
+    }, tokenHash);
+    authenticate(token, (result) => {
+        if (result) {
+            res.send({
+                token
+            });
+            return;
+        }
+        var users = db.get("users").value();
+        if (nameAlreadyExist(users, user.name)) {
+            res.send(null);
+            return;
+        }
+        var id = getNextId(users);
+        var newUser = {
+            id: id,
+            name: user.name,
+            pw: user.pw,
+            drinks: []
+        };
+        db.get("users")
+            .push(newUser)
+            .write();
+        res.send({
+            token
+        });
+        return;
+    });
+}
+
+function checkToken(req, res) {
+    authenticate(req.body.token, (result) => {
+        res.send(result);
+    });
+}
+
+function authenticate(token, callback) {
+    return jwt.verify(token, tokenHash, function (err, decoded) {
+        if (err && err.length > 0) {
+            callback(false);
+        }
+        const dbUser = db.get("users")
+            .find({
+                name: decoded.name,
+                pw: decoded.pw
+            })
+            .value();
+        if (dbUser) {
+            callback(true);
+        }
+        callback(false);
+    });
+
+}
 
 function getUserList(req, res) {
     var users = db.get("users").value();
@@ -47,32 +114,36 @@ function getItems(req, res) {
 }
 
 function addUser(req, res) {
-    var name = req.body.name;
+    // TODO check if needed
+    var user = req.body.user;
     var users = db.get("users").value();
-    if (nameAlreadyExist(users, name)) {
-        res.send(false);
+    if (nameAlreadyExist(users, user.name)) {
+        res.send(null);
         return;
     }
     var id = getNextId(users);
     var user = {
         id: id,
-        name: name,
+        name: user.name,
+        pw: user.pw,
         drinks: []
     };
     // Add a post
     db.get("users")
         .push(user)
         .write();
-    res.send(true);
+    res.send({
+        token
+    });
 }
 
 function saveDrink(req, res) {
     var drink = req.body.item;
     // Add a post
 
-    db.get('users[0].drinks')
+    db.get("users[0].drinks")
         .push(drink)
-        .write()
+        .write();
     res.send(true);
 }
 

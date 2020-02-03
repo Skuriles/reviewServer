@@ -2,19 +2,20 @@
   "users": [
     {
       "id": 1,
-      "name": "bene",
+      "name": "Bene",
+      "pw": "1234",
       "drinks": [
         {
           "id": 1,
           "name": "drink0",
-          "value": "0",
-          "comment": "test"
+          "value": "2",
+          "comment": "sdsadasddadas"
         },
         {
           "id": 1,
           "name": "drink0",
-          "value": "1",
-          "comment": "test"
+          "value": "2",
+          "comment": "sdsadasddadas"
         }
       ]
     }

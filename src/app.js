@@ -9,10 +9,10 @@ app.use("/api", routes);
 app.use("/public", express.static(path.join(__dirname, "public")));
 
 //default route:
-app.get("*", function(req, res) {
+app.get("*", function (req, res) {
   res.sendFile(__dirname + "/public/index.html");
 });
 
-app.listen(port, function() {
+app.listen(port, function () {
   console.log("Review app listening on port " + port + "!");
 });
