@@ -10,8 +10,7 @@ db.defaults({
         name: "admin",
         pw: "admin",
         id: 1,
-        host: false,
-        admin: true,
+        role: "admin",
         drinks: []
     }],
     drinks: []
@@ -33,6 +32,9 @@ module.exports = {
     getItems: (req, res) => {
         getItems(req, res);
     },
+    getHostItems: (req, res) => {
+        getHostItems(req, res);
+    },
     addUser: (req, res) => {
         addUser(req, res);
     },
@@ -45,27 +47,26 @@ module.exports = {
     createDrink: (req, res) => {
         createDrink(req, res);
     },
-    checkHost: (req, res) => {
-        checkHost(req, res);
+    checkRole: (req, res) => {
+        checkRole(req, res);
+    },
+    deleteDrink: (req, res) => {
+        deleteDrink(req, res);
     }
-
 };
 
 function login(req, res) {
     const user = req.body.user;
-    const token = jwt.sign({
-        name: user.name,
-        pw: user.pw,
-        id: user.id
-    }, tokenHash);
     // nicht mit token sondern username und pw authentifizieren
     authenticate(user, (result) => {
         if (result) {
             const token = jwt.sign({
-                name: result.name,
-                pw: result.pw,
-                id: result.id
-            }, tokenHash);
+                    name: result.name,
+                    pw: result.pw,
+                    id: result.id
+                },
+                tokenHash
+            );
             res.send({
                 token
             });
@@ -81,18 +82,19 @@ function login(req, res) {
             id: id,
             name: user.name,
             pw: user.pw,
-            host: false,
-            admin: false,
+            role: "drinker",
             drinks: []
         };
         db.get("users")
             .push(newUser)
             .write();
         const token = jwt.sign({
-            name: newUser.name,
-            pw: newUser.pw,
-            id: newUser.id
-        }, tokenHash);
+                name: newUser.name,
+                pw: newUser.pw,
+                id: newUser.id
+            },
+            tokenHash
+        );
         res.send({
             token
         });
@@ -106,23 +108,22 @@ function checkToken(req, res) {
     });
 }
 
-function checkHost(req, res) {
-    verifyTokenHost(req, (result) => {
-        if (result) {
-            res.send(true);
-        } else {
-            res.send(false);
-        }
+function checkRole(req, res) {
+    verifyRole(req, (err, role) => {
+        res.send({
+            role
+        });
     });
 }
 
 function authenticateToken(token, callback) {
     return jwt.verify(token, tokenHash, function (err, decoded) {
-        if (err && err.length > 0) {
+        if (err) {
             callback(false);
             return;
         }
-        const dbUser = db.get("users")
+        const dbUser = db
+            .get("users")
             .find({
                 name: decoded.name,
                 pw: decoded.pw
@@ -137,7 +138,8 @@ function authenticateToken(token, callback) {
 }
 
 function authenticate(user, callback) {
-    const dbUser = db.get("users")
+    const dbUser = db
+        .get("users")
         .find({
             name: user.name,
             pw: user.pw
@@ -156,104 +158,180 @@ function verifyToken(req, callback) {
     }
 }
 
-function verifyTokenAdmin(req, callback) {
-    var token = req.headers.authorization;
-    var decoded = jwt.verify(token, tokenHash);
-    if (decoded && decoded.role === "Admin") {
-        callback(null, decoded);
-    } else {
-        callback("Kein Admin", null);
-    }
-}
-
-function verifyTokenHost(req, callback) {
+function verifyRole(req, callback) {
     var token = req.headers.authorization;
     var decoded = jwt.verify(token, tokenHash);
     if (decoded) {
-        const host = db.get("users")
+        const role = db
+            .get("users")
             .find({
                 id: decoded.id
             })
-            .get("host")
+            .get("role")
             .value();
-        callback(null, host);
+        callback(null, role);
     } else {
-        callback("Keine Rechte", false);
+        callback("Keine Rechte", "drinker");
     }
 }
 
-
 function getUserList(req, res) {
-    verifyToken(req, (result) => {
+    verifyToken(req, result => {
         if (!result) {
             return [];
         }
         var users = db.get("users").value();
         res.send(users);
-    })
+    });
 }
 
 function getItems(req, res) {
-    verifyToken(req, (result) => {
+    verifyToken(req, (err, result) => {
         if (!result) {
             return [];
         }
-        var list = [];
-        for (let i = 0; i < 3; i++) {
-            var item = {
-                name: "drink" + i,
-                id: i + 1
-            };
-            list.push(item);
-        }
-
+        var list = db.get("users")
+            .find({
+                id: result.id
+            })
+            .get("drinks")
+            .value();
         res.send(list);
         return;
     });
 }
 
-function createDrink(req, res) {
-    verifyTokeHost(req, (result) => {
-        if (!result) {
-            res.send(false);
-            return;
+function getHostItems(req, res) {
+    verifyRole(req, (err, result) => {
+        if (err || result !== "host") {
+            return [];
         }
-        const drink = req.body.item;
-        const id = getNextDrinkId();
-        drink.id = id;
-        db.get("drink")
-            .push(drink)
-            .write();
-        const users = db.get("users").value();
-        for (const user of users) {
-            db.get("users")
-                .find({
-                    id: user.id
-                })
-                .push(drink);
-        }
-        db.write();
-        res.send(true);
+        var list = db.get("drinks").value();
+        res.send(list);
+        return;
     });
 }
 
-function setUserAsHost(req, res) {
-    verifyTokenAdmin(req, (result) => {
-        if (!result) {
-            return [];
+function deleteDrink(req, res) {
+    verifyRole(req, (err, result) => {
+        if (err || result != "host") {
+            res.send(false);
+            return;
         }
-        var userId = req.body.id;
-        var users = db.get("users")
-            .value();
-        let userfound = false;
-        // alten Host zurücksetzen
-        for (const user of users) {
-            if (user.host && user.id != userId) {
+        const drink = req.body;
+        if (drink.id == null) {
+            const id = getNextDrinkId();
+            drink.id = id;
+            db.get("drinks")
+                .push(drink)
+                .write();
+            const users = db.get("users").value();
+            for (const user of users) {
                 db.get("users")
                     .find({
                         id: user.id
                     })
-                    .set("host", false)
+                    .get("drinks")
+                    .push(drink)
+                    .write()
+            }
+            res.send(true);
+        } else {
+            db.get("drinks")
+                .find({
+                    id: drink.id
+                })
+                .set("user", drink.user)
+                .set("name", drink.name);
+            const users = db.get("users").value();
+            for (const user of users) {
+                // TODO eigentlich user und name aus Drink Tabelle??!
+                db.get("users")
+                    .find({
+                        id: user.id
+                    })
+                    .get("drinks")
+                    .find({
+                        id: drink.id
+                    })
+                    .set("user", drink.user)
+                    .set("name", drink.name);
+            }
+            db.write();
+
+            res.send(true);
+        }
+    });
+}
+
+function createDrink(req, res) {
+    verifyRole(req, (err, result) => {
+        if (err || result != "host") {
+            res.send(false);
+            return;
+        }
+        const drink = req.body;
+        if (drink.id == null) {
+            const id = getNextDrinkId();
+            drink.id = id;
+            db.get("drinks")
+                .push(drink)
+                .write();
+            const users = db.get("users").value();
+            for (const user of users) {
+                db.get("users")
+                    .find({
+                        id: user.id
+                    })
+                    .get("drinks")
+                    .push(drink)
+                    .write()
+            }
+            res.send(true);
+        } else {
+            db.get("drinks")
+                .find({
+                    id: drink.id
+                })
+                .set("user", drink.user)
+                .set("name", drink.name)
+                .write();
+            const users = db.get("users").value();
+            for (const user of users) {
+                // TODO eigentlich user und name aus Drink Tabelle??!
+                db.get("users")
+                    .find({
+                        id: user.id
+                    })
+                    .get("drinks")
+                    .find({
+                        id: drink.id
+                    })
+                    .set("user", drink.user)
+                    .set("name", drink.name)
+                    .write();
+            }
+            res.send(true);
+        }
+    });
+}
+
+function setUserAsHost(req, res) {
+    verifyTokenAdmin(req, result => {
+        if (!result) {
+            return [];
+        }
+        var userId = req.body.id;
+        var users = db.get("users").value();
+        let userfound = false;
+        // alten Host zurücksetzen
+        for (const user of users) {
+            if (user.role == "host" && user.id != userId) {
+                db.get("users")
+                    .find({
+                        id: user.id
+                    })
+                    .set("role", "drinker")
                     .value();
             }
             if (user.id == userId) {
@@ -261,19 +339,19 @@ function setUserAsHost(req, res) {
                     .find({
                         id: userId
                     })
-                    .set("host", true)
+                    .set("role", "host")
                     .value();
                 userfound = true;
             }
         }
         res.send(userfound);
-        return
+        return;
     });
 }
 
 function saveDrink(req, res) {
-    verifyToken(req, (result) => {
-        if (!result) {
+    verifyToken(req, (err, result) => {
+        if (err) {
             return [];
         }
         var drink = req.body.item;
@@ -287,8 +365,8 @@ function saveDrink(req, res) {
             .find({
                 id: drink.id
             })
-            .set("drink.value", drink.value)
-            .set("drink.comment", drink.comment)
+            .set("value", drink.value)
+            .set("comment", drink.comment)
             .write();
         res.send(true);
     });
@@ -312,9 +390,8 @@ function getNextId(users) {
     }
 }
 
-
 function getNextDrinkId() {
-    const drinks = db.get(drinks).value();
+    const drinks = db.get("drinks").value();
     if (!drinks || drinks.length == 0) {
         return 1;
     }
