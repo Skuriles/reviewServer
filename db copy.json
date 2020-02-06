@@ -1,0 +1,26 @@
+{
+  "users": [
+    {
+      "name": "admin",
+      "pw": "admin",
+      "id": 1,
+      "role": "admin",
+      "drinks": []
+    },
+    {
+      "id": 2,
+      "name": "bene",
+      "pw": "1234",
+      "role": "drinker",
+      "drinks": []
+    },
+    {
+      "id": 3,
+      "name": "steffi",
+      "pw": "1234",
+      "role": "drinker",
+      "drinks": []
+    }
+  ],
+  "drinks": []
+}

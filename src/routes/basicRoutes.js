@@ -13,7 +13,9 @@ db.defaults({
         role: "admin",
         drinks: []
     }],
-    drinks: []
+    drinks: [],
+    result: [],
+    checkResult: false
 }).write();
 
 module.exports = {
@@ -52,16 +54,23 @@ module.exports = {
     },
     deleteDrink: (req, res) => {
         deleteDrink(req, res);
+    },
+    finish: (req, res) => {
+        finish(req, res);
+    },
+    checkResult: (req, res) => {
+        checkResult(req, res);
     }
+
 };
 
 function login(req, res) {
     const user = req.body.user;
     // nicht mit token sondern username und pw authentifizieren
-    authenticate(user, (result) => {
+    authenticate(user, result => {
         if (result) {
             const token = jwt.sign({
-                    name: result.name,
+                    name: result.name.toLowerCase(),
                     pw: result.pw,
                     id: result.id
                 },
@@ -72,7 +81,7 @@ function login(req, res) {
             });
             return;
         }
-        var users = db.get("users").value();
+        var users = db.get("users").sortBy("id").value();
         if (nameAlreadyExist(users, user.name)) {
             res.send(null);
             return;
@@ -80,16 +89,16 @@ function login(req, res) {
         var id = getNextId(users);
         var newUser = {
             id: id,
-            name: user.name,
+            name: user.name.toLowerCase(),
             pw: user.pw,
             role: "drinker",
-            drinks: []
+            userDrinks: db.get("drinks").value()
         };
         db.get("users")
             .push(newUser)
             .write();
         const token = jwt.sign({
-                name: newUser.name,
+                name: newUser.name.toLowerCase(),
                 pw: newUser.pw,
                 id: newUser.id
             },
@@ -103,7 +112,7 @@ function login(req, res) {
 }
 
 function checkToken(req, res) {
-    authenticateToken(req.body.token, (result) => {
+    authenticateToken(req.body.token, result => {
         res.send(result);
     });
 }
@@ -141,7 +150,7 @@ function authenticate(user, callback) {
     const dbUser = db
         .get("users")
         .find({
-            name: user.name,
+            name: user.name.toLowerCase(),
             pw: user.pw
         })
         .value();
@@ -176,8 +185,8 @@ function verifyRole(req, callback) {
 }
 
 function getUserList(req, res) {
-    verifyToken(req, result => {
-        if (!result) {
+    verifyRole(req, (err, result) => {
+        if (err || result != "admin") {
             return [];
         }
         var users = db.get("users").value();
@@ -190,11 +199,12 @@ function getItems(req, res) {
         if (!result) {
             return [];
         }
-        var list = db.get("users")
+        var list = db
+            .get("users")
             .find({
                 id: result.id
             })
-            .get("drinks")
+            .get("userDrinks")
             .value();
         res.send(list);
         return;
@@ -218,12 +228,12 @@ function deleteDrink(req, res) {
             res.send(false);
             return;
         }
-        const drink = req.body;
-        if (drink.id == null) {
-            const id = getNextDrinkId();
-            drink.id = id;
+        const drinkId = req.body.drinkId;
+        if (drinkId != null) {
             db.get("drinks")
-                .push(drink)
+                .remove({
+                    id: drinkId
+                })
                 .write();
             const users = db.get("users").value();
             for (const user of users) {
@@ -231,36 +241,16 @@ function deleteDrink(req, res) {
                     .find({
                         id: user.id
                     })
-                    .get("drinks")
-                    .push(drink)
-                    .write()
+                    .get("userDrinks")
+                    .remove({
+                        id: drinkId
+                    })
+                    .write();
             }
             res.send(true);
-        } else {
-            db.get("drinks")
-                .find({
-                    id: drink.id
-                })
-                .set("user", drink.user)
-                .set("name", drink.name);
-            const users = db.get("users").value();
-            for (const user of users) {
-                // TODO eigentlich user und name aus Drink Tabelle??!
-                db.get("users")
-                    .find({
-                        id: user.id
-                    })
-                    .get("drinks")
-                    .find({
-                        id: drink.id
-                    })
-                    .set("user", drink.user)
-                    .set("name", drink.name);
-            }
-            db.write();
-
-            res.send(true);
+            return;
         }
+        res.send(true);
     });
 }
 
@@ -279,13 +269,16 @@ function createDrink(req, res) {
                 .write();
             const users = db.get("users").value();
             for (const user of users) {
+                if (user.role == "admin") {
+                    continue;
+                }
                 db.get("users")
                     .find({
                         id: user.id
                     })
-                    .get("drinks")
+                    .get("userDrinks")
                     .push(drink)
-                    .write()
+                    .write();
             }
             res.send(true);
         } else {
@@ -303,7 +296,7 @@ function createDrink(req, res) {
                     .find({
                         id: user.id
                     })
-                    .get("drinks")
+                    .get("userDrinks")
                     .find({
                         id: drink.id
                     })
@@ -317,9 +310,9 @@ function createDrink(req, res) {
 }
 
 function setUserAsHost(req, res) {
-    verifyTokenAdmin(req, result => {
-        if (!result) {
-            return [];
+    verifyRole(req, (err, result) => {
+        if (err || result != "admin") {
+            return false;
         }
         var userId = req.body.id;
         var users = db.get("users").value();
@@ -361,7 +354,7 @@ function saveDrink(req, res) {
             .find({
                 id: result.id
             })
-            .get("drinks")
+            .get("userDrinks")
             .find({
                 id: drink.id
             })
@@ -376,37 +369,34 @@ function getNextId(users) {
     if (!users || users.length == 0) {
         return 1;
     }
-    users.sort(compareUsers);
-    let lastId = 1;
-    for (let i = 0; i < users.length; i++) {
-        const user = users[i];
-        if (i == 0 && user.id != 1) {
-            return 1;
-        }
-        if (lastId + 1 != user.id) {
-            return lastId + 1;
-        }
-        lastId++;
+    // users.sort(compareUsers);
+    if (users.length == 1) {
+        return 2;
     }
+    for (let i = 1; i < users.length; i++) {
+        const user = users[i];
+        if (i + 1 != user.id) {
+            return i + 1;
+        }
+    }
+    return users.length + 1;
 }
 
 function getNextDrinkId() {
-    const drinks = db.get("drinks").value();
+    const drinks = db.get("drinks").sortBy("id").value();
     if (!drinks || drinks.length == 0) {
         return 1;
     }
-    drinks.sort(compareUsers);
-    let lastId = 0;
-    for (let i = 0; i < drinks.length; i++) {
-        const drink = drinks[i];
-        if (i == 0 && drink.id != 1) {
-            return 1;
-        }
-        if (lastId + 1 != drink.id) {
-            return lastId + 1;
-        }
-        lastId++;
+    if (drinks.length == 1) {
+        return 2;
     }
+    for (let i = 1; i < drinks.length; i++) {
+        const drink = drinks[i];
+        if (i + 1 != drink.id) {
+            return i + 1;
+        }
+    }
+    return drinks.length + 1;
 }
 
 function compareUsers(a, b) {
@@ -426,4 +416,115 @@ function nameAlreadyExist(users, name) {
         }
     }
     return false;
+}
+
+function finish(req, res) {
+    verifyRole(req, (err, result) => {
+        if (err || result != "host") {
+            res.send(false);
+            return;
+        }
+        const drinks = db.get("drinks").value();
+        const users = db.get("users").value();
+        var errors = [];
+        var drinkMap = [];
+        for (const drink of drinks) {
+            var drinkValues = [];
+            var map = {
+                id: drink.id,
+                drinkValues: []
+            };
+            for (const user of users) {
+                if (user.role == "admin") {
+                    continue;
+                }
+                for (const userDrink of user.userDrinks) {
+                    if (userDrink.id == drink.id) {
+                        if (userDrink.value == "" || (!userDrink.value)) {
+                            errors.push(user.name + " hat Getränk Nr." + drink.id + " noch nicht bewertet");
+                        }
+                        drinkValues.push(userDrink.value);
+                    }
+                }
+            }
+            map.drinkValues = drinkValues;
+            drinkMap.push(map);
+        }
+        if (errors.length > 0) {
+            res.status(500).send({
+                error: errors
+            });
+        } else {
+            var result = calcResult(drinkMap);
+            res.send(true);
+        }
+    });
+}
+
+function calcResult(drinkMap) {
+    var list = [];
+    for (const map of drinkMap) {
+        var drinkResult = {
+            id: map.id,
+            value: calcValue(map.drinkValues)
+        };
+        list.push(drinkResult);
+    }
+    db.get("result").set([]).write();
+    db.get("result").push(list).write();
+    return list;
+}
+
+function calcValue(values) {
+    var result = 0;
+    for (const value of values) {
+        switch (value) {
+            case "0":
+                result += 1;
+                break;
+            case "1":
+                result += 1.5;
+                break;
+            case "2":
+                result += 2;
+                break;
+            case "3":
+                result += 2.5;
+                break;
+            case "4":
+                result += 3;
+                break;
+            case "5":
+                result += 3.5;
+                break;
+            case "6":
+                result += 4;
+                break;
+            case "7":
+                result += 4.5;
+                break;
+            case "8":
+                result += 5;
+                break;
+            case "9":
+                result += 5.5;
+                break;
+            case "9":
+                result += 6;
+                break;
+            default:
+                break;
+        }
+    }
+    return Math.round(result * 100 / values.length) / 100;
+}
+
+function checkResult(req, res) {
+    verifyToken(req, (err, result) => {
+        if (err) {
+            res.send(false);
+        }
+        var isFree = db.get("checkResult").value();
+        res.send(isFree);
+    })
 }
