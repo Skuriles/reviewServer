@@ -60,6 +60,9 @@ module.exports = {
     },
     checkResult: (req, res) => {
         checkResult(req, res);
+    },
+    getResult: (req, res) => {
+        getResult(req, res);
     }
 
 };
@@ -456,6 +459,7 @@ function finish(req, res) {
             });
         } else {
             var result = calcResult(drinkMap);
+            db.set("checkResult", true).write();
             res.send(true);
         }
     });
@@ -470,8 +474,8 @@ function calcResult(drinkMap) {
         };
         list.push(drinkResult);
     }
-    db.get("result").set([]).write();
-    db.get("result").push(list).write();
+    db.set("result", []).write();
+    db.set("result", list).write();
     return list;
 }
 
@@ -523,8 +527,58 @@ function checkResult(req, res) {
     verifyToken(req, (err, result) => {
         if (err) {
             res.send(false);
+            return;
         }
         var isFree = db.get("checkResult").value();
         res.send(isFree);
     })
+}
+
+function getResult(req, res) {
+    verifyToken(req, (err, result) => {
+        if (err) {
+            res.send([]);
+            return;
+        }
+        var isFree = db.get("checkResult").value();
+        if (!isFree) {
+            res.send([]);
+            return;
+        }
+        var result = db.get("result").value();
+        var drinkResult = buildResult(result);
+        res.send(drinkResult);
+    })
+}
+
+function buildResult(result) {
+    var list = [];
+    var drinks = db.get("drinks").value();
+    for (const drink of drinks) {
+        const res = {};
+        res.name = drink.name;
+        res.id = drink.id;
+        res.user = drink.user;
+        for (const drinkVal of result) {
+            if (drinkVal.id == drink.id) {
+                res.value = drinkVal.value;
+                list.push(res);
+            }
+        }
+    }
+    list.sort(sortDrinkResult);
+    return list;
+
+}
+
+function sortDrinkResult(a, b) {
+    var valueA = a.value;
+    var valueB = b.value;
+    if (valueA < valueB) {
+        return -1;
+    }
+    if (valueA > valueB) {
+        return 1;
+    }
+    return 0;
 }

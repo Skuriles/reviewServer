@@ -17,6 +17,6 @@ router.route('/checkRole').post(basicRoutes.checkRole);
 router.route('/deleteDrink').post(basicRoutes.deleteDrink);
 router.route('/finish').post(basicRoutes.finish);
 router.route('/checkResult').post(basicRoutes.checkResult);
-
+router.route('/getResult').post(basicRoutes.getResult);
 
 module.exports = router;
