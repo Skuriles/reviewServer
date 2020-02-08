@@ -6,11 +6,12 @@ var port = 3000;
 
 app.use(express.json());
 app.use("/api", routes);
-app.use("/public", express.static(path.join(__dirname, "public")));
+app.use("/", express.static(path.join(__dirname, "public")));
 
 //default route:
 app.get("*", function (req, res) {
-  res.sendFile(__dirname + "/public/index.html");
+  var path = __dirname + "/public/index.html";
+  res.sendFile(path);
 });
 
 app.listen(port, function () {

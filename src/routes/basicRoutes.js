@@ -3,20 +3,10 @@ const FileSync = require("lowdb/adapters/FileSync");
 const adapter = new FileSync("db.json");
 const db = low(adapter);
 var jwt = require("jsonwebtoken");
+var fs = require('fs');
 const tokenHash = "hhdaii1123";
 // Set some defaults (required if your JSON file is empty)
-db.defaults({
-    users: [{
-        name: "admin",
-        pw: "admin",
-        id: 1,
-        role: "admin",
-        drinks: []
-    }],
-    drinks: [],
-    result: [],
-    checkResult: false
-}).write();
+initDb();
 
 module.exports = {
     start: (req, res) => {
@@ -63,9 +53,54 @@ module.exports = {
     },
     getResult: (req, res) => {
         getResult(req, res);
-    }
-
+    },
+    resetAll: (req, res) => {
+        resetAll(req, res);
+    },
+    getArchive: (req, res) => {
+        getArchive(req, res);
+    },
+    getFileResult: (req, res) => {
+        getFileResult(req, res);
+    },
+    getFile: (req, res) => {
+        getFile(req, res);
+    },
 };
+
+function initDb() {
+    db.defaults({
+        users: [{
+            name: "admin",
+            pw: "admin",
+            id: 1,
+            role: "admin",
+            drinks: []
+        }],
+        drinks: [],
+        result: [],
+        checkResult: false
+    }).write();
+}
+
+function initDbAfterReset() {
+    db.get('users')
+        .push({
+            name: "admin",
+            pw: "admin",
+            id: 1,
+            role: "admin",
+            drinks: []
+        })
+        .write();
+}
+
+function resetDb() {
+    db.set("users", []).write();
+    db.set("drinks", []).write();
+    db.set("result", []).write();
+    db.set("checkResult", false).write();
+}
 
 function login(req, res) {
     const user = req.body.user;
@@ -208,6 +243,7 @@ function getItems(req, res) {
                 id: result.id
             })
             .get("userDrinks")
+            .sortBy("id")
             .value();
         res.send(list);
         return;
@@ -219,7 +255,9 @@ function getHostItems(req, res) {
         if (err || result !== "host") {
             return [];
         }
-        var list = db.get("drinks").value();
+        var list = db.get("drinks")
+            .sortBy("id")
+            .value();
         res.send(list);
         return;
     });
@@ -267,6 +305,15 @@ function createDrink(req, res) {
         if (drink.id == null) {
             const id = getNextDrinkId();
             drink.id = id;
+            var drinkExist = db.get("drinks")
+                .find({
+                    name: drink.name
+                })
+                .value();
+            if (drinkExist) {
+                res.send(false);
+                return;
+            }
             db.get("drinks")
                 .push(drink)
                 .write();
@@ -390,14 +437,13 @@ function getNextDrinkId() {
     if (!drinks || drinks.length == 0) {
         return 1;
     }
-    if (drinks.length == 1) {
-        return 2;
-    }
-    for (let i = 1; i < drinks.length; i++) {
+    let id = 1;
+    for (let i = 0; i < drinks.length; i++) {
         const drink = drinks[i];
-        if (i + 1 != drink.id) {
-            return i + 1;
+        if (id != drink.id) {
+            return id++;
         }
+        id++;
     }
     return drinks.length + 1;
 }
@@ -568,7 +614,6 @@ function buildResult(result) {
     }
     list.sort(sortDrinkResult);
     return list;
-
 }
 
 function sortDrinkResult(a, b) {
@@ -581,4 +626,102 @@ function sortDrinkResult(a, b) {
         return 1;
     }
     return 0;
+}
+
+function resetAll(req, res) {
+    verifyRole(req, (err, result) => {
+        if (err || result != "admin") {
+            res.send(false);
+            return;
+        }
+        var date = new Date();
+        var fileName = getFileName(date)
+        fs.rename('db.json', fileName, function (err) {
+            if (err) {
+                res.send(false);
+                return;
+            };
+            resetDb();
+            initDbAfterReset();
+            res.send(true);
+        });
+
+    });
+}
+
+function getFileName(date) {
+    var year = date.getFullYear();
+    var month = date.getMonth() + 1;
+    var day = date.getDay();
+    var fileName = year + "_" + month + "_" + day + "_db.json";
+    if (!fs.existsSync(fileName)) {
+        return fileName;
+    } else {
+        for (let i = 0; i < 1000; i++) {
+            var newFileName = i + "-" + fileName;
+            if (!fs.existsSync(newFileName)) {
+                return newFileName;
+            }
+        }
+    }
+}
+
+function getArchive(req, res) {
+    verifyRole(req, (err, result) => {
+        if (err || result != "admin") {
+            res.send([]);
+            return;
+        }
+        var list = [];
+        fs.readdirSync("./").forEach(file => {
+            if (file.endsWith("db.json")) {
+                list.push(file);
+            }
+        });
+        res.send(list);
+    });
+}
+
+function getFile(req, res) {
+    verifyRole(req, (err, result) => {
+        if (err || result != "admin") {
+            res.send([]);
+            return;
+        }
+        var jsonFile = fs.readFileSync(req.body.fileName);
+        res.send(jsonFile);
+    });
+}
+
+function getFileResult(req, res) {
+    verifyRole(req, (err, result) => {
+        if (err || result != "admin") {
+            res.send([]);
+            return;
+        }
+        const newAdap = new FileSync(req.body.fileName);
+        const dbResult = low(newAdap);
+        var result = dbResult.get("result").value();
+        var list = buildResultArchive(result, dbResult);
+        res.send(list);
+    })
+}
+
+function buildResultArchive(result, dbResult) {
+    var list = [];
+    var drinks = dbResult.get("drinks").value();
+    for (const drink of drinks) {
+        const res = {};
+        res.name = drink.name;
+        res.id = drink.id;
+        res.user = drink.user;
+        for (const drinkVal of result) {
+            if (drinkVal.id == drink.id) {
+                res.value = drinkVal.value;
+                list.push(res);
+            }
+        }
+    }
+    list.sort(sortDrinkResult);
+    return list;
 }

@@ -1,0 +1,142 @@
+{
+  "users": [{
+      "name": "admin",
+      "pw": "admin",
+      "id": 1,
+      "role": "admin",
+      "userDrinks": []
+    },
+    {
+      "id": 2,
+      "name": "bene",
+      "pw": "1234",
+      "role": "host",
+      "userDrinks": [{
+          "id": 1,
+          "name": "wein",
+          "value": "0",
+          "comment": "",
+          "user": "bene"
+        },
+        {
+          "id": 2,
+          "name": "schnaps",
+          "value": "1",
+          "comment": "",
+          "user": "vanne"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "steffi",
+      "pw": "1234",
+      "role": "drinker",
+      "userDrinks": [{
+          "id": 1,
+          "name": "wein",
+          "value": "2",
+          "comment": "",
+          "user": "bene"
+        },
+        {
+          "id": 2,
+          "name": "schnaps",
+          "value": "3",
+          "comment": "",
+          "user": "vanne"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "vanne",
+      "pw": "1234",
+      "role": "drinker",
+      "userDrinks": [{
+          "id": 1,
+          "name": "wein",
+          "value": "4",
+          "comment": "",
+          "user": "bene"
+        },
+        {
+          "id": 2,
+          "name": "schnaps",
+          "value": "5",
+          "comment": "",
+          "user": "vanne"
+        }
+      ]
+    }
+  ],
+  "drinks": [{
+      "id": 1,
+      "name": "wein",
+      "value": "",
+      "comment": "",
+      "user": "bene"
+    },
+    {
+      "id": 2,
+      "name": "schnaps",
+      "value": "",
+      "comment": "",
+      "user": "vanne"
+    },
+    {
+      "id": 3,
+      "name": "test",
+      "value": "",
+      "comment": "",
+      "user": "bene"
+    },
+    {
+      "id": 4,
+      "name": "test3",
+      "value": "",
+      "comment": "",
+      "user": "vanne"
+    },
+    {
+      "id": 5,
+      "name": "test4",
+      "value": "",
+      "comment": "",
+      "user": "bene"
+    },
+    {
+      "id": 6,
+      "name": "ttest",
+      "value": "",
+      "comment": "",
+      "user": "vanne"
+    }
+  ],
+  "result": [{
+      "id": 1,
+      "value": 1
+    },
+    {
+      "id": 2,
+      "value": 2.5
+    },
+    {
+      "id": 3,
+      "value": 3
+    },
+    {
+      "id": 4,
+      "value": 5
+    },
+    {
+      "id": 5,
+      "value": 3.5
+    },
+    {
+      "id": 6,
+      "value": 4.5
+    }
+  ],
+  "checkResult": true
+}

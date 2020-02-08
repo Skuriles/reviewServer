@@ -18,5 +18,9 @@ router.route('/deleteDrink').post(basicRoutes.deleteDrink);
 router.route('/finish').post(basicRoutes.finish);
 router.route('/checkResult').post(basicRoutes.checkResult);
 router.route('/getResult').post(basicRoutes.getResult);
+router.route('/resetAll').post(basicRoutes.resetAll);
+router.route('/getArchive').post(basicRoutes.getArchive);
+router.route('/getFileResult').post(basicRoutes.getFileResult);
+router.route('/getFile').post(basicRoutes.getFile);
 
 module.exports = router;
